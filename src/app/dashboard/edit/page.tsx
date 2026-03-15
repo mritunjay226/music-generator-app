@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
 import { usePlayer } from "@/contexts/PlayerContext";
 import type { Track } from "@/contexts/PlayerContext";
 import {
     Loader2, Upload, Music2, Wand2, CheckCircle2,
     AlertCircle, RefreshCw, ChevronRight, Zap,
     Mic, Shuffle, Layers, GitBranch, Paintbrush,
-    Clock, Search, X, Play, Pause, Scissors
+    Clock, Search, X, Play, Pause, Scissors,
+    Download, ExternalLink
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -15,11 +18,12 @@ import {
 type TaskType = "repaint" | "continuation" | "remix" | "extract" | "cover";
 
 interface RepaintJob {
-    status: "idle" | "repainting" | "completed" | "failed";
+    status: "idle" | "repainting" | "queued" | "failed";
     error?: string;
+    trackId?: string;
 }
 
-// ─── Task definitions — drives all conditional UI ────────────────────────────
+// ─── Task definitions ────────────────────────────────────────────────────────
 
 const TASKS: {
     id: TaskType;
@@ -34,6 +38,8 @@ const TASKS: {
     promptPlaceholder: string;
     submitLabel: string;
     needsPrompt: boolean;
+    // What task_type to actually send to the API
+    apiTaskType?: string;
 }[] = [
         {
             id: "repaint",
@@ -52,7 +58,7 @@ const TASKS: {
             label: "Continue",
             icon: GitBranch,
             tagline: "Extend the track",
-            description: "Pick a point in the track and generate new music continuing from there. No end point needed.",
+            description: "Pick a point in the track and generate new music continuing from there.",
             needsRegion: false,
             needsReference: false,
             promptPlaceholder: "Describe how the continuation should sound…",
@@ -100,6 +106,8 @@ const TASKS: {
             promptPlaceholder: "Describe the vocal style or leave blank for automatic…",
             submitLabel: "Generate Cover",
             needsPrompt: false,
+            // cover maps to task_type="cover" in the API (Modal now accepts it)
+            apiTaskType: "cover",
         },
     ];
 
@@ -114,20 +122,40 @@ function formatDate(ms: number) {
     return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatRelative(ms: number) {
+    const diff = Date.now() - ms;
+    if (diff < 60_000) return "just now";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+    return formatDate(ms);
+}
+
+// FIX: was process.env.CLOUDINARY_CLOUD_NAME (server-only, always undefined client-side)
+// Must be NEXT_PUBLIC_ prefixed for browser access.
 async function uploadToCloudinary(file: File): Promise<string> {
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!;
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!;
+
+    if (!cloudName || !uploadPreset) {
+        throw new Error(
+            "Missing NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME or NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET env vars"
+        );
+    }
+
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+    formData.append("upload_preset", uploadPreset);
     formData.append("resource_type", "video");
+
     const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME!}/video/upload`,
+        `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
         { method: "POST", body: formData }
     );
     if (!res.ok) throw new Error(`Cloudinary upload failed: ${await res.text()}`);
     return (await res.json()).secure_url as string;
 }
 
-// ─── Region Selector — fixed, stable, no re-renders on random bars ───────────
+// ─── Region Selector ──────────────────────────────────────────────────────────
 
 const BARS = Array.from({ length: 72 }, (_, i) =>
     Math.max(12, Math.min(88, 30 + Math.sin(i * 0.37) * 22 + Math.sin(i * 1.13) * 14 + (((i * 7919) % 97) / 97) * 18))
@@ -179,7 +207,6 @@ function RegionSelector({
     return (
         <div className="select-none space-y-3">
             <div ref={barRef} className="relative h-14 rounded-[10px] bg-(--surface-2) border border-(--border) overflow-hidden cursor-crosshair">
-                {/* Bars */}
                 <div className="absolute inset-0 flex items-center gap-[2px] px-1.5">
                     {BARS.map((h, i) => {
                         const t = (i / BARS.length) * duration;
@@ -191,14 +218,10 @@ function RegionSelector({
                         );
                     })}
                 </div>
-
-                {/* Region fill */}
                 <div className="absolute top-0 bottom-0 bg-(--accent-blue)/8 cursor-grab active:cursor-grabbing"
                     style={{ left: pct(start), width: regionWidth }}
                     onMouseDown={(e) => startDrag(e, "region")}
                 />
-
-                {/* Start handle */}
                 <div className="absolute top-0 bottom-0 w-[3px] bg-(--accent-blue) cursor-ew-resize z-10"
                     style={{ left: pct(start) }}
                     onMouseDown={(e) => startDrag(e, "start")}
@@ -206,8 +229,6 @@ function RegionSelector({
                     <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-(--accent-blue) rounded-full shadow-md border-2 border-white/20" />
                     <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-4 h-4 bg-(--accent-blue) rounded-full shadow-md border-2 border-white/20" />
                 </div>
-
-                {/* End handle */}
                 <div className="absolute top-0 bottom-0 w-[3px] bg-(--accent-blue) cursor-ew-resize z-10"
                     style={{ left: pct(end) }}
                     onMouseDown={(e) => startDrag(e, "end")}
@@ -215,15 +236,11 @@ function RegionSelector({
                     <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-(--accent-blue) rounded-full shadow-md border-2 border-white/20" />
                     <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-4 h-4 bg-(--accent-blue) rounded-full shadow-md border-2 border-white/20" />
                 </div>
-
-                {/* Playhead */}
                 {duration > 0 && currentTime > 0 && (
                     <div className="absolute top-0 bottom-0 w-px bg-white/60 pointer-events-none z-20"
                         style={{ left: pct(currentTime) }} />
                 )}
             </div>
-
-            {/* Time row */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5">
@@ -250,7 +267,7 @@ function RegionSelector({
     );
 }
 
-// ─── Track Picker — searchable dropdown style ────────────────────────────────
+// ─── Track Picker ─────────────────────────────────────────────────────────────
 
 function TrackPicker({ tracks, selected, onSelect, isPlaying, activeTrackId, onTogglePlay }: {
     tracks: Track[]; selected: Track | null;
@@ -276,7 +293,6 @@ function TrackPicker({ tracks, selected, onSelect, isPlaying, activeTrackId, onT
 
     return (
         <div ref={ref} className="relative">
-            {/* Trigger */}
             <button
                 onClick={() => setOpen(v => !v)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-[10px] border transition-all duration-200 text-left ${selected
@@ -295,7 +311,6 @@ function TrackPicker({ tracks, selected, onSelect, isPlaying, activeTrackId, onT
                             <p className="text-[13px] font-semibold text-foreground truncate">{selected.prompt || "Untitled"}</p>
                             <p className="text-[11px] text-(--fg-4)">{formatTime(selected.duration)} · {formatDate(selected._creationTime)}</p>
                         </div>
-                        {/* Play/pause mini button */}
                         {selected.url && (
                             <button
                                 onClick={e => { e.stopPropagation(); onTogglePlay(); }}
@@ -320,10 +335,8 @@ function TrackPicker({ tracks, selected, onSelect, isPlaying, activeTrackId, onT
                 )}
             </button>
 
-            {/* Dropdown */}
             {open && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--surface)] border border-[var(--border)] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-50 overflow-hidden animate-fade-up">
-                    {/* Search */}
                     <div className="p-2 border-b border-[var(--border)]">
                         <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-2)] rounded-[8px]">
                             <Search size={12} className="text-[var(--fg-4)]" />
@@ -341,7 +354,6 @@ function TrackPicker({ tracks, selected, onSelect, isPlaying, activeTrackId, onT
                             )}
                         </div>
                     </div>
-                    {/* List */}
                     <div className="max-h-[220px] overflow-y-auto">
                         {filtered.length === 0 ? (
                             <div className="py-6 text-center text-[12px] text-[var(--fg-4)]">No tracks found</div>
@@ -350,8 +362,7 @@ function TrackPicker({ tracks, selected, onSelect, isPlaying, activeTrackId, onT
                                 <button
                                     key={track._id}
                                     onClick={() => { onSelect(track); setOpen(false); setSearch(""); }}
-                                    className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left ${selected?._id === track._id ? "bg-[var(--accent-blue-light)]" : ""
-                                        }`}
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)] transition-colors text-left ${selected?._id === track._id ? "bg-[var(--accent-blue-light)]" : ""}`}
                                 >
                                     <div className="w-7 h-7 rounded-full flex-shrink-0 relative" style={{ background: track.gradient }}>
                                         <div className="absolute inset-0 rounded-full flex items-center justify-center">
@@ -468,7 +479,6 @@ function StartPointPicker({ duration, value, onChange, currentTime }: {
                 className="relative h-10 rounded-[8px] bg-[var(--surface-2)] border border-[var(--border)] overflow-hidden cursor-pointer"
                 onClick={e => onChange(toTime(e.clientX))}
             >
-                {/* Bars */}
                 <div className="absolute inset-0 flex items-center gap-[2px] px-1">
                     {BARS.map((h, i) => {
                         const t = (i / BARS.length) * duration;
@@ -479,7 +489,6 @@ function StartPointPicker({ duration, value, onChange, currentTime }: {
                         );
                     })}
                 </div>
-                {/* Handle */}
                 <div
                     className="absolute top-0 bottom-0 w-[3px] bg-(--accent-blue) cursor-ew-resize z-10"
                     style={{ left: pct(value) }}
@@ -502,12 +511,94 @@ function StartPointPicker({ duration, value, onChange, currentTime }: {
     );
 }
 
+// ─── Repaint Results Panel ────────────────────────────────────────────────────
+// Live Convex query — shows completed / in-progress repaints for selected track.
+
+function RepaintResults({ trackId, onPlay }: {
+    trackId: string;
+    onPlay: (url: string, label: string) => void;
+}) {
+    const repaints = useQuery(api.repaints.getRepaintsByTrack, { trackId });
+
+    if (!repaints || repaints.length === 0) return null;
+
+    const taskLabel: Record<string, string> = {
+        repaint: "Repaint", continuation: "Continue", remix: "Remix",
+        extract: "Extract", cover: "Voice Cover",
+    };
+
+    return (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[14px] p-5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--fg-4)] mb-3">
+                Edit History
+            </p>
+            <div className="flex flex-col gap-2">
+                {repaints.map(r => (
+                    <div key={r._id}
+                        className={`flex items-center gap-3 px-3.5 py-3 rounded-[10px] border transition-colors ${r.status === "completed"
+                            ? "bg-[var(--surface-2)] border-[var(--border)]"
+                            : r.status === "failed"
+                                ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
+                                : "bg-[var(--accent-blue-light)] border-[var(--accent-blue-border)]"
+                            }`}
+                    >
+                        {/* Status icon */}
+                        <div className="flex-shrink-0">
+                            {r.status === "completed"
+                                ? <CheckCircle2 size={14} className="text-green-500" />
+                                : r.status === "failed"
+                                    ? <AlertCircle size={14} className="text-red-500" />
+                                    : <Loader2 size={14} className="animate-spin text-[var(--accent-blue)]" />
+                            }
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[12.5px] font-semibold text-[var(--fg)] truncate">
+                                {taskLabel[r.taskType] ?? r.taskType}
+                                {r.repaintingStart != null && r.repaintingEnd != null && r.repaintingEnd > 0 && (
+                                    <span className="font-normal text-[var(--fg-4)] ml-1.5">
+                                        {formatTime(r.repaintingStart)}–{formatTime(r.repaintingEnd)}
+                                    </span>
+                                )}
+                            </p>
+                            <p className="text-[11px] text-[var(--fg-4)] truncate mt-0.5">{r.prompt}</p>
+                            <p className="text-[10px] text-[var(--fg-4)] mt-0.5">{formatRelative(r._creationTime)}</p>
+                        </div>
+
+                        {/* Actions */}
+                        {r.status === "completed" && r.url && (
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <button
+                                    onClick={() => onPlay(r.url!, taskLabel[r.taskType] ?? r.taskType)}
+                                    className="w-7 h-7 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--fg-3)] hover:text-[var(--accent-blue)] transition-colors"
+                                    title="Play"
+                                >
+                                    <Play size={11} className="fill-current ml-0.5" />
+                                </button>
+                                <a
+                                    href={r.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-7 h-7 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[var(--fg-3)] hover:text-[var(--accent-blue)] transition-colors"
+                                    title="Open in new tab"
+                                >
+                                    <ExternalLink size={11} />
+                                </a>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EditPage() {
     const { library, activeTrack, setActiveTrack, isPlaying, togglePlayPause, currentTime } = usePlayer();
 
-    // Step state — wizard flow
     const [taskType, setTaskType] = useState<TaskType>("repaint");
     const task = TASKS.find(t => t.id === taskType)!;
 
@@ -541,6 +632,12 @@ export default function EditPage() {
     const srcAudioUrl = sourceMode === "library" ? selectedTrack?.url : uploadedUrl;
     const srcDuration = sourceMode === "library" ? (selectedTrack?.duration ?? 30) : uploadedDuration;
 
+    // trackId for uploaded files: stable string built once per upload
+    const uploadedTrackId = useRef<string>(`upload_${Date.now()}`);
+    const trackId = sourceMode === "library"
+        ? (selectedTrack?._id as string | undefined)
+        : uploadedTrackId.current;
+
     const canSubmit = !!srcAudioUrl
         && (!task.needsPrompt || !!prompt.trim())
         && (!task.needsReference || !!referenceUrl.trim())
@@ -551,7 +648,6 @@ export default function EditPage() {
         setContinuationStart(Math.min(continuationStart, srcDuration));
     }, [srcDuration]);
 
-    // Reset reference when task changes
     useEffect(() => {
         setReferenceUrl("");
         setPrompt("");
@@ -568,6 +664,8 @@ export default function EditPage() {
         if (!file) return;
         setIsUploading(true);
         setUploadedName(file.name);
+        // New upload = new stable ID
+        uploadedTrackId.current = `upload_${Date.now()}`;
         try {
             const localUrl = URL.createObjectURL(file);
             const audio = new Audio(localUrl);
@@ -589,28 +687,42 @@ export default function EditPage() {
     };
 
     const handleSubmit = async () => {
-        if (!canSubmit) return;
+        if (!canSubmit || !trackId) return;
         setJob({ status: "repainting" });
+
         try {
-            const repaintingStart = task.needsRegion ? repaintStart : (task.id === "continuation" ? continuationStart : 0);
-            const repaintingEnd = task.needsRegion ? repaintEnd : srcDuration;
+            const repaintingStart = task.needsRegion
+                ? repaintStart
+                : task.id === "continuation"
+                    ? continuationStart
+                    : 0;
+
+            const repaintingEnd = task.needsRegion
+                ? repaintEnd
+                : srcDuration;
 
             if (repaintingStart >= repaintingEnd) {
-                setJob({ status: "failed", error: `Start point (${formatTime(repaintingStart)}) must be before end (${formatTime(repaintingEnd)})` });
+                setJob({
+                    status: "failed",
+                    error: `Start (${formatTime(repaintingStart)}) must be before end (${formatTime(repaintingEnd)})`
+                });
                 return;
             }
+
+            // FIX: use apiTaskType if defined (cover → "cover"), else use task.id
+            const apiTaskType = task.apiTaskType ?? task.id;
 
             const res = await fetch("/api/repaint", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    trackId: selectedTrack?._id ?? `upload_${Date.now()}`,
+                    trackId,
                     srcAudioUrl,
                     prompt: prompt || task.label,
                     lyrics,
                     repaintingStart,
                     repaintingEnd,
-                    taskType,
+                    taskType: apiTaskType,
                     referenceAudioUrl: referenceUrl || null,
                     audioCoverStrength,
                     coverNoiseStrength,
@@ -619,15 +731,37 @@ export default function EditPage() {
                     seed,
                 }),
             });
+
             if (!res.ok) {
-                const err = await res.json();
+                const err = await res.json().catch(() => ({ error: "Failed" }));
                 throw new Error(err.error ?? "Failed");
             }
-            setJob({ status: "completed" });
+
+            // API returns 200 immediately — Inngest runs async.
+            // Status = "queued" shows the "Queued successfully!" panel.
+            setJob({ status: "queued", trackId });
         } catch (err: any) {
             setJob({ status: "failed", error: err.message });
         }
     };
+
+    // Play a repaint result through the global player
+    const handlePlayRepaint = useCallback((url: string, label: string) => {
+        // Temporarily hijack the player with the repaint URL
+        // by creating a fake track object
+        const fakeTrack = {
+            _id: `repaint_${Date.now()}` as any,
+            url,
+            prompt: label,
+            lyrics: "",
+            duration: 0,
+            gradient: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            _creationTime: Date.now(),
+            status: "completed",
+            userId: "",
+        };
+        setActiveTrack(fakeTrack);
+    }, [setActiveTrack]);
 
     const completedTracks = (library ?? []).filter(t => t.status === "completed" && t.url);
 
@@ -647,7 +781,7 @@ export default function EditPage() {
                 </p>
             </div>
 
-            {/* ── Step 1: Task Picker ── */}
+            {/* Step 1: Task Picker */}
             <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--fg-4)] mb-3">Choose Edit Mode</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -663,8 +797,7 @@ export default function EditPage() {
                                     : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]"
                                     }`}
                             >
-                                <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center ${selected ? "bg-(--accent-blue) text-white" : "bg-[var(--surface-2)] text-[var(--fg-3)]"
-                                    }`}>
+                                <div className={`w-8 h-8 rounded-[8px] flex items-center justify-center ${selected ? "bg-(--accent-blue) text-white" : "bg-[var(--surface-2)] text-[var(--fg-3)]"}`}>
                                     <Icon size={15} />
                                 </div>
                                 <div>
@@ -676,17 +809,16 @@ export default function EditPage() {
                     })}
                 </div>
 
-                {/* Task description pill */}
                 <div className="mt-3 px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--border)] flex items-start gap-2.5">
                     {(() => { const Icon = task.icon; return <Icon size={13} className="text-[var(--accent-blue)] mt-0.5 flex-shrink-0" />; })()}
                     <p className="text-[12.5px] text-[var(--fg-3)] leading-relaxed">{task.description}</p>
                 </div>
             </div>
 
-            {/* ── Main two-column layout ── */}
+            {/* Main two-column layout */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
 
-                {/* Left: Source + Controls */}
+                {/* Left: Source + Controls + Results */}
                 <div className="flex flex-col gap-5">
 
                     {/* Source Audio */}
@@ -696,8 +828,7 @@ export default function EditPage() {
                         <div className="flex gap-1.5 mb-4 p-1 bg-[var(--surface-2)] rounded-[8px] border border-[var(--border)]">
                             {(["library", "upload"] as const).map(m => (
                                 <button key={m} onClick={() => setSourceMode(m)}
-                                    className={`flex-1 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all duration-200 ${sourceMode === m ? "bg-[var(--surface)] text-[var(--fg)] shadow-sm" : "text-[var(--fg-4)] hover:text-[var(--fg-3)]"
-                                        }`}>
+                                    className={`flex-1 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all duration-200 ${sourceMode === m ? "bg-[var(--surface)] text-[var(--fg)] shadow-sm" : "text-[var(--fg-4)] hover:text-[var(--fg-3)]"}`}>
                                     {m === "library" ? "Library" : "Upload"}
                                 </button>
                             ))}
@@ -755,7 +886,7 @@ export default function EditPage() {
                         )}
                     </div>
 
-                    {/* Region / Start Point — only when source selected and task needs it */}
+                    {/* Region selector (repaint) */}
                     {srcAudioUrl && task.needsRegion && (
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[14px] p-5 animate-fade-up">
                             <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--fg-4)] mb-4">Select Region to Repaint</p>
@@ -769,6 +900,7 @@ export default function EditPage() {
                         </div>
                     )}
 
+                    {/* Start point picker (continuation) */}
                     {srcAudioUrl && task.id === "continuation" && (
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[14px] p-5 animate-fade-up">
                             <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--fg-4)] mb-4">Start Point</p>
@@ -781,12 +913,20 @@ export default function EditPage() {
                             />
                         </div>
                     )}
+
+                    {/* Live results panel — shows for the current selected track */}
+                    {trackId && (
+                        <RepaintResults
+                            trackId={trackId}
+                            onPlay={handlePlayRepaint}
+                        />
+                    )}
                 </div>
 
                 {/* Right: Prompt + Reference + Settings + Submit */}
                 <div className="flex flex-col gap-4">
 
-                    {/* Reference audio — cover / remix / extract */}
+                    {/* Reference audio */}
                     {task.needsReference && (
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[14px] p-5">
                             <ReferenceUploader
@@ -812,7 +952,6 @@ export default function EditPage() {
                             className="input-field resize-none text-[13px] leading-relaxed"
                         />
 
-                        {/* Lyrics — not relevant for cover/extract */}
                         {task.id !== "cover" && task.id !== "extract" && (
                             <div className="mt-3">
                                 <p className="text-[11px] text-[var(--fg-4)] font-semibold uppercase tracking-widest mb-1.5">
@@ -853,7 +992,8 @@ export default function EditPage() {
                                         <p className="text-[10.5px] text-[var(--fg-4)] font-semibold uppercase tracking-widest">Steps</p>
                                         <span className="text-[11px] font-bold text-[var(--fg-3)]">{inferStep}</span>
                                     </div>
-                                    <input type="range" min={1} max={8} step={1} value={inferStep}
+                                    {/* Max is 20 now (was incorrectly 8 in the original) */}
+                                    <input type="range" min={1} max={20} step={1} value={inferStep}
                                         onChange={e => setInferStep(parseInt(e.target.value))}
                                         className="w-full accent-[var(--accent-blue)] h-1" />
                                     <div className="flex justify-between text-[10px] text-[var(--fg-4)] mt-1">
@@ -902,7 +1042,6 @@ export default function EditPage() {
                                 {job.status === "failed" ? "Try Again" : task.submitLabel}
                             </button>
 
-                            {/* Validation hints */}
                             {!srcAudioUrl && (
                                 <p className="text-center text-[11.5px] text-[var(--fg-4)]">↑ Select a source track first</p>
                             )}
@@ -922,20 +1061,18 @@ export default function EditPage() {
                             </div>
                             <div className="text-center">
                                 <p className="text-[13px] font-semibold text-[var(--fg)]">{task.label} in progress…</p>
-                                <p className="text-[11.5px] text-[var(--fg-4)] mt-0.5">Running in background. You can leave this page.</p>
-                            </div>
-                            <div className="w-full h-1 rounded-full bg-[var(--surface-2)] overflow-hidden">
-                                <div className="h-full progress-bar-animated rounded-full w-full" />
+                                <p className="text-[11.5px] text-[var(--fg-4)] mt-0.5">Submitting to queue…</p>
                             </div>
                         </div>
                     ) : (
+                        /* job.status === "queued" */
                         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[14px] p-5 flex flex-col gap-3">
                             <div className="flex items-center gap-2.5">
                                 <CheckCircle2 size={15} className="text-green-500" />
                                 <p className="text-[13px] font-semibold text-[var(--fg)]">Queued successfully!</p>
                             </div>
                             <p className="text-[11.5px] text-[var(--fg-4)]">
-                                Your edited track will appear in the Library once it's ready.
+                                Your edited track will appear in Edit History below once it's ready. This usually takes 30–90 seconds.
                             </p>
                             <button onClick={() => setJob({ status: "idle" })}
                                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] text-[12.5px] font-semibold text-[var(--fg-3)] hover:text-[var(--fg)] hover:bg-[var(--surface)] transition-all duration-200">

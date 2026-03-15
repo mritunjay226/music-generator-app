@@ -74,15 +74,15 @@ export function TrackCard({ track, isActive, isPlaying, onPlay, onTogglePlayPaus
 
     return (
         <div
-            className={`bg-[var(--surface)] border rounded-[12px] overflow-visible transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(17,17,16,0.06)] group relative hover-lift mt-6 ${
+            className={`bg-(--surface) border rounded-[12px] overflow-visible transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(17,17,16,0.06)] group relative hover-lift mt-6 ${
                 isActive
                     ? "border-aura"
-                    : "border-[var(--border)] hover:border-[var(--border-strong)]"
+                    : "border-(--border) hover:border-(--border-strong)"
             }`}
         >
             {/* Thumbnail Container */}
             <div
-                className="h-[120px] w-full relative flex items-start justify-center cursor-pointer pt-6 pb-2 px-4 rounded-t-[12px] bg-linear-to-b from-[var(--surface-2)] to-transparent"
+                className="h-[120px] w-full relative flex items-start justify-center cursor-pointer pt-6 pb-2 px-4 rounded-t-[12px] bg-linear-to-b from-(--surface-2) to-transparent"
                 onClick={handlePlayClick}
             >
                 {/* 3D CD Wrapper */}
@@ -119,7 +119,7 @@ export function TrackCard({ track, isActive, isPlaying, onPlay, onTogglePlayPaus
                     )}
 
                     {/* Center Hole */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30px] h-[30px] bg-[var(--bg)] rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.05)] dark:shadow-[inset_0_4px_8px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.05)] z-20 flex items-center justify-center">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30px] h-[30px] bg-background rounded-full shadow-[inset_0_4px_8px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.05)] dark:shadow-[inset_0_4px_8px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.05)] z-20 flex items-center justify-center">
                         <div className="w-3 h-3 bg-foreground rounded-full shadow-[inset_0_1px_3px_rgba(0,0,0,0.9)]" />
                     </div>
 
@@ -138,7 +138,7 @@ export function TrackCard({ track, isActive, isPlaying, onPlay, onTogglePlayPaus
 
                 {/* Active indicator */}
                 {isActive && (
-                    <div className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-[var(--surface-3)]/90 backdrop-blur-sm border border-[var(--border)] rounded-full px-2.5 py-1.5 shadow-sm z-30">
+                    <div className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-[var(--surface-3)]/90 backdrop-blur-sm border border-(--border) rounded-full px-2.5 py-1.5 shadow-sm z-30">
                         {isPlaying ? (
                             <>
                                 {[0, 1, 2].map((i) => (
@@ -177,7 +177,7 @@ export function TrackCard({ track, isActive, isPlaying, onPlay, onTogglePlayPaus
                 <button
                     ref={buttonRef}
                     onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-                    className="h-7 w-7 rounded-full bg-[var(--surface-3)]/90 backdrop-blur-md border border-[var(--border)] flex items-center justify-center text-[var(--fg-3)] hover:text-foreground hover:bg-[var(--surface-2)] transition-colors shadow-sm dark:shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                    className="h-7 w-7 rounded-full bg-[var(--surface-3)]/90 backdrop-blur-md border border-(--border) flex items-center justify-center text-[var(--fg-3)] hover:text-foreground hover:bg-[var(--surface-2)] transition-colors shadow-sm dark:shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
                 >
                     <MoreVertical size={13} />
                 </button>
@@ -186,7 +186,7 @@ export function TrackCard({ track, isActive, isPlaying, onPlay, onTogglePlayPaus
                 {menuOpen && typeof window !== "undefined" && createPortal(
                     <div
                         ref={menuRef}
-                        className="fixed z-[9999] w-48 bg-[var(--surface)] border border-[var(--border)] rounded-[12px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] animate-fade-up"
+                        className="fixed z-[9999] w-48 bg-(--surface) border border-(--border) rounded-[12px] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] animate-fade-up"
                         style={{
                             top: (buttonRef.current?.getBoundingClientRect().bottom ?? 0) + 6,
                             left: (buttonRef.current?.getBoundingClientRect().right ?? 0) - 192,
@@ -207,7 +207,7 @@ export function TrackCard({ track, isActive, isPlaying, onPlay, onTogglePlayPaus
                         )}
                         <button
                             onClick={handleDelete}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] font-medium text-red-600 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-950/30 border-t border-[var(--border)] transition-all duration-200 hover:pl-5"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] font-medium text-red-600 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-950/30 border-t border-(--border) transition-all duration-200 hover:pl-5"
                         >
                             <Trash2 size={15} />
                             Delete Track

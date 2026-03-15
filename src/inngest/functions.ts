@@ -1,4 +1,12 @@
 // inngest/functions.ts — full replacement
+//
+// FIXES applied to repaintMusic:
+//   1. Wraps Modal call in try/catch — on failure calls /inngest_fail_repaint
+//      so the Convex row moves to "failed" instead of stuck at "repainting".
+//   2. Passes userId through (stored in event.data by the API route).
+//   3. repaintingEnd=null is passed straight through to Modal — the CPU
+//      preprocessor resolves the actual file duration server-side.
+
 import { inngest } from "./client";
 
 // ─── Thumbnail prompt builder ─────────────────────────────────────────────────
@@ -17,11 +25,6 @@ async function uploadImageToCloudinary(
 
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    // Cloudinary signature:
-    // 1. All upload params (NOT file/api_key/resource_type/signature), sorted alphabetically
-    // 2. Joined as key=value&key=value
-    // 3. API secret appended DIRECTLY — no & before it
-    // 4. SHA-1 of the whole string (not HMAC)
     const params: Record<string, string> = {
         folder:    "ace_step_v15_thumbnails",
         public_id: publicId,
@@ -33,9 +36,7 @@ async function uploadImageToCloudinary(
         .map(k => `${k}=${params[k]}`)
         .join("&");
 
-    // e.g. "folder=ace_step_v15_thumbnails&public_id=thumb_xxx&timestamp=1234567890<SECRET>"
     const strToSign = `${sortedParamString}${apiSecret}`;
-
     const hashBuf   = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(strToSign));
     const signature = Array.from(new Uint8Array(hashBuf))
         .map(b => b.toString(16).padStart(2, "0"))
@@ -56,6 +57,24 @@ async function uploadImageToCloudinary(
 
     if (!res.ok) throw new Error(`Cloudinary image upload failed: ${await res.text()}`);
     return (await res.json()).secure_url as string;
+}
+
+// ─── Shared helper: notify Convex of failure ─────────────────────────────────
+async function notifyRepaintFailed(trackId: string): Promise<void> {
+    const CONVEX_SITE_URL = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
+    try {
+        await fetch(`${CONVEX_SITE_URL}/inngest_fail_repaint`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${process.env.INNGEST_WEBHOOK_SECRET}`,
+            },
+            body: JSON.stringify({ trackId }),
+        });
+    } catch (err) {
+        // Best-effort — don't throw
+        console.error("[repaint] failed to notify Convex of failure:", err);
+    }
 }
 
 // ─── generateMusic ────────────────────────────────────────────────────────────
@@ -113,14 +132,11 @@ export const generateMusic = inngest.createFunction(
             return await response.json();
         });
 
-        // Step 3: Generate thumbnail via Pollinations Flux + save to Convex
-        // Non-fatal — thumbnail failure never fails the track
+        // Step 3: Generate thumbnail (non-fatal)
         await step.run("generate-thumbnail", async () => {
             try {
                 const pollinationsKey = process.env.POLLINATIONS_API_KEY;
-
                 if (!pollinationsKey) {
-                    console.error("[thumbnail] POLLINATIONS_API_KEY missing from env");
                     return { skipped: true, reason: "missing POLLINATIONS_API_KEY" };
                 }
 
@@ -128,30 +144,23 @@ export const generateMusic = inngest.createFunction(
                 const encodedPrompt  = encodeURIComponent(imagePrompt);
                 const pollinationsUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?model=flux&width=512&height=512&nologo=true&private=true`;
 
-                console.log("[thumbnail] calling pollinations...");
                 const imgResponse = await fetch(pollinationsUrl, {
                     headers: { "Authorization": `Bearer ${pollinationsKey}` },
                     signal: AbortSignal.timeout(60_000),
                 });
 
-                console.log("[thumbnail] status:", imgResponse.status, "content-type:", imgResponse.headers.get("content-type"));
-
                 if (!imgResponse.ok) {
                     const errText = await imgResponse.text();
-                    console.error("[thumbnail] pollinations error:", errText.slice(0, 300));
                     return { skipped: true, reason: `pollinations ${imgResponse.status}: ${errText.slice(0, 200)}` };
                 }
 
                 const imageBuffer = await imgResponse.arrayBuffer();
-                console.log("[thumbnail] bytes received:", imageBuffer.byteLength);
-
                 if (imageBuffer.byteLength < 1000) {
-                    return { skipped: true, reason: "image response too small — likely an error page" };
+                    return { skipped: true, reason: "image response too small" };
                 }
 
                 const publicId     = `thumb_${trackId}_${Date.now()}`;
                 const thumbnailUrl = await uploadImageToCloudinary(imageBuffer, publicId);
-                console.log("[thumbnail] uploaded to cloudinary:", thumbnailUrl);
 
                 const CONVEX_SITE_URL = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
                 const saveResponse = await fetch(`${CONVEX_SITE_URL}/inngest_save_thumbnail`, {
@@ -164,16 +173,11 @@ export const generateMusic = inngest.createFunction(
                 });
 
                 if (!saveResponse.ok) {
-                    const errText = await saveResponse.text();
-                    console.error("[thumbnail] convex save error:", errText);
-                    return { skipped: true, reason: `convex save failed: ${errText.slice(0, 200)}` };
+                    return { skipped: true, reason: "convex thumbnail save failed" };
                 }
 
-                console.log("[thumbnail] saved successfully");
                 return { thumbnailUrl };
-
             } catch (err: any) {
-                console.error("[thumbnail] caught error:", err?.message ?? err);
                 return { skipped: true, reason: err?.message ?? String(err) };
             }
         });
@@ -216,59 +220,74 @@ export const repaintMusic = inngest.createFunction(
             outputFormat,
         } = event.data;
 
+        const CONVEX_SITE_URL = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
+
         // Step 1: Call Modal /repaint
+        // Wrapped in try/catch so failures mark the Convex row as "failed"
+        // rather than leaving it stuck at "repainting" forever.
         const result = await step.run("request-modal-repaint", async () => {
-            const response = await fetch(
-                // "https://mishramritunjay45--ace-step-v15-music-api-api.modal.run/repaint",
-                "https://mritunjaymishra9809--ace-step-v15-music-api-api.modal.run/repaint",
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    signal: AbortSignal.timeout(300_000),
-                    body: JSON.stringify({
-                        src_audio_url:        srcAudioUrl,
-                        prompt,
-                        lyrics:               lyrics            ?? "[inst]",
-                        repainting_start:     repaintingStart   ?? 0.0,
-                        repainting_end:       repaintingEnd     ?? null,
-                        task_type:            taskType          ?? "repaint",
-                        reference_audio_url:  referenceAudioUrl ?? null,
-                        audio_cover_strength: audioCoverStrength ?? 1.0,
-                        cover_noise_strength: coverNoiseStrength ?? 0.0,
-                        infer_step:           inferStep         ?? 8,
-                        guidance_scale:       guidanceScale     ?? 15.0,
-                        seed:                 seed              ?? -1,
-                        bpm:                  bpm               ?? "",
-                        key:                  key               ?? "",
-                        language:             language          ?? "en",
-                        infer_method:         inferMethod       ?? "ode",
-                        cfg_interval_start:   cfgIntervalStart  ?? 0.0,
-                        cfg_interval_end:     cfgIntervalEnd    ?? 1.0,
-                        shift:                shift             ?? 1.0,
-                        use_adg:              useAdg            ?? false,
-                        output_format:        outputFormat      ?? "mp3",
-                    }),
-                }
-            );
+            let response: Response;
+            try {
+                response = await fetch(
+                    "https://mritunjaymishra9809--ace-step-v15-music-api-api.modal.run/repaint",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        signal: AbortSignal.timeout(300_000),
+                        body: JSON.stringify({
+                            src_audio_url:        srcAudioUrl,
+                            prompt,
+                            lyrics:               lyrics             ?? "[inst]",
+                            repainting_start:     repaintingStart    ?? 0.0,
+                            repainting_end:       repaintingEnd      ?? null,
+                            task_type:            taskType           ?? "repaint",
+                            reference_audio_url:  referenceAudioUrl  ?? null,
+                            audio_cover_strength: audioCoverStrength ?? 1.0,
+                            cover_noise_strength: coverNoiseStrength ?? 0.0,
+                            infer_step:           inferStep          ?? 8,
+                            guidance_scale:       guidanceScale      ?? 15.0,
+                            seed:                 seed               ?? -1,
+                            bpm:                  bpm                ?? "",
+                            key:                  key                ?? "",
+                            language:             language           ?? "en",
+                            infer_method:         inferMethod        ?? "ode",
+                            cfg_interval_start:   cfgIntervalStart   ?? 0.0,
+                            cfg_interval_end:     cfgIntervalEnd     ?? 1.0,
+                            shift:                shift              ?? 1.0,
+                            use_adg:              useAdg             ?? false,
+                            output_format:        outputFormat       ?? "mp3",
+                        }),
+                    }
+                );
+            } catch (fetchErr: any) {
+                await notifyRepaintFailed(trackId);
+                throw new Error(`Modal fetch failed: ${fetchErr.message}`);
+            }
+
             if (!response.ok) {
                 const errorText = await response.text();
+                await notifyRepaintFailed(trackId);
                 throw new Error(`Modal repaint failed: ${response.status} - ${errorText}`);
             }
+
             const data = await response.json();
-            if (!data.url) throw new Error("Modal returned no URL");
+            if (!data.url) {
+                await notifyRepaintFailed(trackId);
+                throw new Error("Modal returned no URL");
+            }
+
             return {
                 url:             data.url              as string,
                 duration:        data.duration         as number,
                 seed:            data.seed             as number,
-                repaintingStart: data.repainting_start as number,
-                repaintingEnd:   data.repainting_end   as number,
-                taskType:        data.task_type        as string,
+                repaintingStart: (data.repainting_start ?? repaintingStart) as number,
+                repaintingEnd:   (data.repainting_end   ?? repaintingEnd)   as number,
+                taskType:        (data.task_type        ?? taskType)        as string,
             };
         });
 
         // Step 2: Save to Convex
         await step.run("save-repaint-to-convex", async () => {
-            const CONVEX_SITE_URL = process.env.NEXT_PUBLIC_CONVEX_URL!.replace(".cloud", ".site");
             const response = await fetch(`${CONVEX_SITE_URL}/inngest_save_repaint`, {
                 method: "POST",
                 headers: {

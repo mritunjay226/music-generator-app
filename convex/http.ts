@@ -1,3 +1,8 @@
+// convex/http.ts — full replacement
+//
+// ADDED: /inngest_create_repaint — called by the Next.js API route BEFORE
+// firing Inngest, so saveRepaintInternal can find the row when Modal finishes.
+
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -5,7 +10,7 @@ import { internal } from "./_generated/api";
 const http = httpRouter();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared auth helper for Inngest webhook calls
+// Shared auth helper
 // ─────────────────────────────────────────────────────────────────────────────
 
 function verifyWebhookAuth(request: Request): boolean {
@@ -18,7 +23,6 @@ function verifyWebhookAuth(request: Request): boolean {
     return true;
 }
 
-/** SHA-256 a string, return hex digest */
 async function sha256Hex(input: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(input);
@@ -28,28 +32,18 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Inngest webhook routes
+// Track routes
 // ─────────────────────────────────────────────────────────────────────────────
 
 http.route({
     path: "/inngest_save_track",
     method: "POST",
     handler: httpAction(async (ctx, request) => {
-        if (!verifyWebhookAuth(request)) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-
-        const body = await request.json();
-        const { trackId, url } = body;
-
-        await ctx.runMutation(internal.tracks.saveTrackInternal, {
-            trackId,
-            url,
-        });
-
+        if (!verifyWebhookAuth(request)) return new Response("Unauthorized", { status: 401 });
+        const { trackId, url } = await request.json();
+        await ctx.runMutation(internal.tracks.saveTrackInternal, { trackId, url });
         return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
+            status: 200, headers: { "Content-Type": "application/json" },
         });
     }),
 });
@@ -58,43 +52,61 @@ http.route({
     path: "/inngest_fail_track",
     method: "POST",
     handler: httpAction(async (ctx, request) => {
-        if (!verifyWebhookAuth(request)) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-
-        const body = await request.json();
-        const { trackId } = body;
-
+        if (!verifyWebhookAuth(request)) return new Response("Unauthorized", { status: 401 });
+        const { trackId } = await request.json();
         await ctx.runMutation(internal.tracks.failTrackInternal, { trackId });
-
         return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
+            status: 200, headers: { "Content-Type": "application/json" },
         });
     }),
 });
-
-// convex/http.ts — ADD this route after inngest_fail_track, before inngest_save_repaint
 
 http.route({
     path: "/inngest_save_thumbnail",
     method: "POST",
     handler: httpAction(async (ctx, request) => {
-        if (!verifyWebhookAuth(request)) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-
-        const body = await request.json();
-        const { trackId, thumbnailUrl } = body;
-
-        await ctx.runMutation(internal.tracks.saveThumbnailInternal, {
-            trackId,
-            thumbnailUrl,
-        });
-
+        if (!verifyWebhookAuth(request)) return new Response("Unauthorized", { status: 401 });
+        const { trackId, thumbnailUrl } = await request.json();
+        await ctx.runMutation(internal.tracks.saveThumbnailInternal, { trackId, thumbnailUrl });
         return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
+            status: 200, headers: { "Content-Type": "application/json" },
+        });
+    }),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Repaint routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+// NEW — called by /api/repaint BEFORE Inngest fires so the row exists
+// when saveRepaintInternal runs.
+http.route({
+    path: "/inngest_create_repaint",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+        if (!verifyWebhookAuth(request)) return new Response("Unauthorized", { status: 401 });
+        const {
+            userId,
+            trackId,
+            srcAudioUrl,
+            prompt,
+            lyrics,
+            taskType,
+            repaintingStart,
+            repaintingEnd,
+        } = await request.json();
+        await ctx.runMutation(internal.repaints.createRepaint, {
+            userId,
+            trackId,
+            srcAudioUrl,
+            prompt,
+            lyrics:          lyrics          ?? "[inst]",
+            taskType:        taskType        ?? "repaint",
+            repaintingStart: repaintingStart ?? 0,
+            repaintingEnd:   repaintingEnd   ?? 0,
+        });
+        return new Response(JSON.stringify({ success: true }), {
+            status: 200, headers: { "Content-Type": "application/json" },
         });
     }),
 });
@@ -103,34 +115,15 @@ http.route({
     path: "/inngest_save_repaint",
     method: "POST",
     handler: httpAction(async (ctx, request) => {
-        if (!verifyWebhookAuth(request)) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-
-        const body = await request.json();
+        if (!verifyWebhookAuth(request)) return new Response("Unauthorized", { status: 401 });
         const {
-            trackId,
-            url,
-            duration,
-            seed,
-            repaintingStart,
-            repaintingEnd,
-            taskType,
-        } = body;
-
+            trackId, url, duration, seed, repaintingStart, repaintingEnd, taskType,
+        } = await request.json();
         await ctx.runMutation(internal.repaints.saveRepaintInternal, {
-            trackId,
-            url,
-            duration,
-            seed,
-            repaintingStart,
-            repaintingEnd,
-            taskType,
+            trackId, url, duration, seed, repaintingStart, repaintingEnd, taskType,
         });
-
         return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
+            status: 200, headers: { "Content-Type": "application/json" },
         });
     }),
 });
@@ -139,33 +132,23 @@ http.route({
     path: "/inngest_fail_repaint",
     method: "POST",
     handler: httpAction(async (ctx, request) => {
-        if (!verifyWebhookAuth(request)) {
-            return new Response("Unauthorized", { status: 401 });
-        }
-
-        const body = await request.json();
-        const { trackId } = body;
-
+        if (!verifyWebhookAuth(request)) return new Response("Unauthorized", { status: 401 });
+        const { trackId } = await request.json();
         await ctx.runMutation(internal.repaints.failRepaintInternal, { trackId });
-
         return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
+            status: 200, headers: { "Content-Type": "application/json" },
         });
     }),
 });
 
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Public API key validation endpoint
-// Used by developers to verify keys from their own apps.
+// Public API key validation
 // ─────────────────────────────────────────────────────────────────────────────
 
 http.route({
     path: "/validate_api_key",
     method: "POST",
     handler: httpAction(async (ctx, request) => {
-        // CORS preflight
         const corsHeaders = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -176,15 +159,14 @@ http.route({
         const authHeader = request.headers.get("Authorization");
         if (!authHeader || !authHeader.startsWith("Bearer ace_sk_")) {
             return new Response(
-                JSON.stringify({ valid: false, error: "Missing or malformed Authorization header. Expected: Bearer ace_sk_..." }),
+                JSON.stringify({ valid: false, error: "Missing or malformed Authorization header." }),
                 { status: 401, headers: corsHeaders }
             );
         }
 
-        const rawKey = authHeader.slice(7); // strip "Bearer "
+        const rawKey  = authHeader.slice(7);
         const keyHash = await sha256Hex(rawKey);
-
-        const result = await ctx.runQuery(internal.apiKeys.validateApiKeyInternal, { keyHash });
+        const result  = await ctx.runQuery(internal.apiKeys.validateApiKeyInternal, { keyHash });
 
         if (!result) {
             return new Response(
@@ -193,7 +175,6 @@ http.route({
             );
         }
 
-        // Record usage
         await ctx.runMutation(internal.apiKeys.touchApiKeyInternal, {
             apiKeyId: result.apiKeyId,
             userId: result.userId,
@@ -208,20 +189,19 @@ http.route({
     }),
 });
 
-// Handle CORS preflight for /validate_api_key
 http.route({
     path: "/validate_api_key",
     method: "OPTIONS",
-    handler: httpAction(async (_ctx, _request) => {
-        return new Response(null, {
+    handler: httpAction(async () =>
+        new Response(null, {
             status: 204,
             headers: {
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Authorization, Content-Type",
             },
-        });
-    }),
+        })
+    ),
 });
 
 export default http;

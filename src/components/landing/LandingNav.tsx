@@ -17,9 +17,9 @@ export function LandingNav() {
 
     return (
         <nav
-            className={`h-[70px] px-6 lg:px-16 flex items-center justify-between sticky top-0 z-50 transition-all duration-200 ${scrolled
-                ? "bg-[var(--surface)]/95 backdrop-blur-xl border-b border-[var(--border)]"
-                : "bg-background"
+            className={`h-[70px] px-6 lg:px-16 flex items-center justify-between fixed top-0 w-full z-50 transition-all duration-300 ${scrolled
+                ? "bg-background border-b border-(--border) shadow-sm dark:shadow-none"
+                : "bg-transparent border-b border-transparent"
                 }`}
         >
             {/* Logo */}
@@ -50,12 +50,12 @@ export function LandingNav() {
                 <ThemeToggle />
                 <Show when="signed-out">
                     <Link href="/dashboard">
-                        <button className="hidden sm:flex h-9 px-4 text-[13px] font-medium text-(--fg-3) hover:text-foreground hover:bg-[var(--surface-2)] rounded-[12px] transition-all duration-300 hover:scale-[1.03] active:scale-[0.97]">
+                        <button className="hidden sm:flex h-9 px-4 text-[13px] font-medium text-(--fg-3) hover:text-foreground hover:bg-(--surface-2) rounded-[12px] transition-all duration-300 hover:scale-[1.03] active:scale-[0.97]">
                             Log in
                         </button>
                     </Link>
                     <Link href="/dashboard">
-                        <button className="flex items-center gap-1.5 h-9 px-4 text-[13px] font-semibold bg-foreground text-background rounded-[12px] hover:bg-[var(--fg-2)] transition-all duration-300 hover:scale-[1.03] hover:shadow-md active:scale-[0.97]">
+                        <button className="flex items-center gap-1.5 h-9 px-4 text-[13px] font-semibold bg-foreground text-background rounded-[12px] hover:bg-(--fg-2) transition-all duration-300 hover:scale-[1.03] hover:shadow-md active:scale-[0.97]">
                             Get Started <ArrowRight size={13} />
                         </button>
                     </Link>
