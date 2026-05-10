@@ -32,6 +32,9 @@ interface PlayerContextType {
     toggleLoop: () => void;
     playNext: () => void;
     playPrev: () => void;
+    isSidebarOpen: boolean;
+    toggleSidebar: () => void;
+    openSidebar: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -51,6 +54,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const [currentTime, setCurrentTime]     = useState(0);
     const [duration, setDuration]           = useState(0);
     const [isLooping, setIsLooping]         = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    const toggleSidebar = useCallback(() => setIsSidebarOpen(prev => !prev), []);
+    const openSidebar   = useCallback(() => setIsSidebarOpen(true), []);
 
     const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -67,6 +74,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setActiveTrackState(track);
         setCurrentTime(0);
         setDuration(0);
+        // Auto-open the sidebar whenever a new track is loaded
+        if (track) setIsSidebarOpen(true);
     }, []);
 
     const togglePlayPause = useCallback(() => {
@@ -195,6 +204,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             toggleLoop,
             playNext,
             playPrev,
+            isSidebarOpen,
+            toggleSidebar,
+            openSidebar,
         }}>
             {children}
             <audio ref={audioRef} className="hidden" />

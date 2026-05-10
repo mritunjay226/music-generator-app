@@ -1,7 +1,7 @@
 "use client";
 
 import { usePlayer } from "@/contexts/PlayerContext";
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Repeat } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Repeat, Mic2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
 function formatTime(seconds: number) {
@@ -12,7 +12,7 @@ function formatTime(seconds: number) {
 }
 
 export function GlobalPlayer() {
-    const { activeTrack, isPlaying, togglePlayPause, currentTime, seekTo, audioRef, isLooping, toggleLoop } = usePlayer();
+    const { activeTrack, isPlaying, togglePlayPause, currentTime, seekTo, audioRef, isLooping, toggleLoop, isSidebarOpen, toggleSidebar } = usePlayer();
     const [duration, setDuration] = useState(0);
     const [volume, setVolume] = useState(1);
     const [muted, setMuted] = useState(false);
@@ -142,7 +142,7 @@ export function GlobalPlayer() {
                 </div>
             </div>
 
-            {/* Volume — right aligned */}
+            {/* Volume + Lyrics — right aligned */}
             <div className="hidden sm:flex items-center justify-end gap-3 w-1/3">
                 <button
                     onClick={() => setMuted((m) => !m)}
@@ -163,6 +163,19 @@ export function GlobalPlayer() {
                     }}
                     className="w-24 h-1.5 rounded-full appearance-none cursor-pointer accent-foreground bg-[var(--surface-3)]"
                 />
+                <div className="w-px h-4 bg-[var(--border)]" />
+                <button
+                    onClick={toggleSidebar}
+                    title={isSidebarOpen ? "Hide lyrics" : "Show lyrics"}
+                    className={`flex items-center gap-1.5 h-7 px-3 rounded-md text-[11.5px] font-semibold transition-all duration-200 ${
+                        isSidebarOpen
+                            ? "bg-foreground text-background"
+                            : "text-[var(--fg-4)] hover:text-foreground hover:bg-[var(--surface-2)]"
+                    }`}
+                >
+                    <Mic2 size={13} />
+                    <span>Lyrics</span>
+                </button>
             </div>
         </div>
     );
