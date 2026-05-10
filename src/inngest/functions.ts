@@ -83,8 +83,9 @@ export const generateMusic = inngest.createFunction(
     {
         id: "generate-music",
         retries: 3,
+        // Inngest v4: Move event trigger into options
+        triggers: [{ event: "app/music.generate" }],
     },
-    { event: "app/music.generate" },
     async ({ event, step }) => {
         const { prompt, lyrics, duration, trackId } = event.data;
 
@@ -192,8 +193,9 @@ export const repaintMusic = inngest.createFunction(
     {
         id: "repaint-music",
         retries: 2,
+        // Inngest v4: Move event trigger into options
+        triggers: [{ event: "app/music.repaint" }],
     },
-    { event: "app/music.repaint" },
     async ({ event, step }) => {
         const {
             trackId,

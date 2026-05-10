@@ -16,8 +16,11 @@ const http = httpRouter();
 function verifyWebhookAuth(request: Request): boolean {
     const authHeader = request.headers.get("Authorization");
     const expectedKey = `Bearer ${process.env.INNGEST_WEBHOOK_SECRET}`;
+
     if (!authHeader || authHeader !== expectedKey) {
-        console.error("Inngest Webhook Auth Failed. Got:", authHeader);
+        console.error("Inngest Webhook Auth Failed.");
+        console.error("Got Header:", authHeader);
+        console.error("Expected Secret Prefix:", process.env.INNGEST_WEBHOOK_SECRET ? process.env.INNGEST_WEBHOOK_SECRET.slice(0, 4) + "..." : "undefined");
         return false;
     }
     return true;
