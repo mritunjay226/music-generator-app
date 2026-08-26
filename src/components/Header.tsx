@@ -12,6 +12,8 @@ const breadcrumbs: Record<string, string> = {
     "/dashboard/billing": "Billing",
 };
 
+// this is the component for the header we ware using it in various places
+
 export function Header() {
     const pathname = usePathname();
     const currentPage = breadcrumbs[pathname] ?? "Dashboard";

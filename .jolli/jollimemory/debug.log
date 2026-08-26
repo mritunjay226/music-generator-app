@@ -1,0 +1,56 @@
+[2026-08-26T18:13:44.493Z] INFO  [SkillProjection] projectActiveSkills: 0 active (0 in registry)
+[2026-08-26T18:13:45.368Z] INFO  [Sync:VsCodeBootstrap] Memory Bank sync engine built (auto-sync off — manual only)
+[2026-08-26T18:13:45.968Z] INFO  [RepoProfile] manual-disable MIGRATE → manuallyDisabled=false (pid=14816, profile=c:\Users\mk\Documents\ace-music-generator\musical\.jolli\jollimemory\profile.json, fence=none, from=legacy-marker) ←  at EJ (c:\Users\mk\.antigravity-ide\extensions\jolli.jollimemory-vscode-0.99.15-universal\dist\Extension.js:98:909) | at c:\Users\mk\.antigravity-ide\extensions\jolli.jollimemory-vscode-0.99.15-universal\dist\Extension.js:99:953 | at df (c:\Users\mk\.antigravity-ide\extensions\jolli.jollimemory-vscode-0.99.15-universal\dist\Extension.js:3:5846) | at vJ (c:\Users\mk\.antigravity-ide\extensions\jolli.jollimemory-vscode-0.99.15-universal\dist\Extension.js:99:572) | at ho (c:\Users\mk\.antigravity-ide\extensions\jolli.jollimemory-vscode-0.99.15-universal\dist\Extension.js:99:475) | at t.refreshHookPathsIfStale (c:\Users\mk\.antigravity-ide\extensions\jolli.jollimemory-vscode-0.99.15-universal\dist\Extension.js:3841:17986)
+[2026-08-26T18:13:46.225Z] INFO  [StorageFactory] StorageFactory.create: route=uncutover, projectPath=c:\Users\mk\Documents\ace-music-generator\musical
+[2026-08-26T18:13:46.805Z] INFO  [Installer] Checking Jolli Memory status
+[2026-08-26T18:13:46.962Z] INFO  [RepoProfile] manual-disable read → false (by=migrate:legacy-marker, pid=14816, cwd=c:\Users\mk\Documents\ace-music-generator\musical, profile=c:\Users\mk\Documents\ace-music-generator\musical\.jolli\jollimemory\profile.json, raw: userDisabled=undefined manuallyDisabled=undefined fence=none)
+[2026-08-26T18:13:47.015Z] INFO  [bridge] Own dist-paths/antigravity-ide missing, stale, or pointing elsewhere — re-enabling
+[2026-08-26T18:13:47.015Z] INFO  [bridge] enable() called
+[2026-08-26T18:13:47.017Z] INFO  [Installer] Installing Jolli Memory hooks
+[2026-08-26T18:13:48.421Z] INFO  [DispatchScripts] Wrote resolve-dist-path, run-hook, and run-cli scripts to C:\Users\mk\.jolli\jollimemory
+[2026-08-26T18:13:48.426Z] INFO  [DistPathWriter] Wrote dist-paths/antigravity-ide (version=0.99.15, distDir=c:\Users\mk\.antigravity-ide\extensions\jolli.jollimemory-vscode-0.99.15-universal\dist)
+[2026-08-26T18:13:48.537Z] INFO  [SkillInstaller] Wrote SKILL.md (revision 3) to C:\Users\mk\Documents\ace-music-generator\musical\.agents\skills\jolli-recall\SKILL.md
+[2026-08-26T18:13:48.563Z] INFO  [SkillInstaller] Wrote SKILL.md (revision 3) to C:\Users\mk\Documents\ace-music-generator\musical\.agents\skills\jolli-search\SKILL.md
+[2026-08-26T18:13:48.611Z] INFO  [SkillInstaller] Wrote SKILL.md (revision 6) to C:\Users\mk\Documents\ace-music-generator\musical\.agents\skills\jolli-local-run\SKILL.md
+[2026-08-26T18:13:48.670Z] INFO  [SkillInstaller] Wrote SKILL.md (revision 5) to C:\Users\mk\Documents\ace-music-generator\musical\.agents\skills\jolli-remote-run\SKILL.md
+[2026-08-26T18:13:48.679Z] INFO  [SkillInstaller] Wrote SKILL.md (revision 9) to C:\Users\mk\Documents\ace-music-generator\musical\.agents\skills\jolli\SKILL.md
+[2026-08-26T18:13:48.932Z] INFO  [Installer] Checking Jolli Memory status
+[2026-08-26T18:13:48.933Z] INFO  [PlanService] detectPlans found 0 plans (0 in registry)
+[2026-08-26T18:13:48.933Z] INFO  [NoteService] detectNotes found 0 notes (0 in registry)
+[2026-08-26T18:13:48.933Z] INFO  [references] detectReferences(*) found 0 (0 in registry)
+[2026-08-26T18:13:48.933Z] INFO  [SkillProjection] projectActiveSkills: 0 active (0 in registry)
+[2026-08-26T18:13:49.079Z] INFO  [StorageFactory] StorageFactory.create: route=uncutover, projectPath=c:\Users\mk\Documents\ace-music-generator\musical
+[2026-08-26T18:13:50.014Z] INFO  [bridge] Merged mode activated {"branch":"main","creationPoint":"5383ac5e","author":"mritunjay226"}
+[2026-08-26T18:13:50.200Z] INFO  [GitExclude] Updated C:\Users\mk\Documents\ace-music-generator\musical\.git\info\exclude with 8 Jolli skill exclude paths
+[2026-08-26T18:13:50.205Z] INFO  [McpRegistration] Registered MCP server in C:\Users\mk\Documents\ace-music-generator\musical\.mcp.json
+[2026-08-26T18:13:50.218Z] INFO  [JsonMcpWriter] Registered MCP server in C:\Users\mk\Documents\ace-music-generator\musical\.cursor\mcp.json
+[2026-08-26T18:13:50.248Z] INFO  [JsonMcpWriter] Registered MCP server in C:\Users\mk\.gemini\settings.json
+[2026-08-26T18:13:50.311Z] INFO  [CodexTomlWriter] Registered Codex MCP server in C:\Users\mk\.codex\config.toml
+[2026-08-26T18:13:50.331Z] INFO  [JsonMcpWriter] Registered MCP server in C:\Users\mk\.config\opencode\opencode.json
+[2026-08-26T18:13:50.350Z] INFO  [JsonMcpWriter] Registered MCP server in C:\Users\mk\AppData\Roaming\Code\User\mcp.json
+[2026-08-26T18:13:50.355Z] INFO  [JsonMcpWriter] Registered MCP server in C:\Users\mk\.gemini\config\mcp_config.json
+[2026-08-26T18:13:50.384Z] INFO  [GitHookInstaller] Git post-commit hook installed
+[2026-08-26T18:13:50.458Z] INFO  [GitHookInstaller] Git post-rewrite hook installed
+[2026-08-26T18:13:50.462Z] INFO  [GitHookInstaller] Git prepare-commit-msg hook installed
+[2026-08-26T18:13:50.467Z] INFO  [GitHookInstaller] Git post-merge hook installed
+[2026-08-26T18:13:50.472Z] INFO  [GitHookInstaller] Git pre-push hook installed
+[2026-08-26T18:13:50.477Z] INFO  [GeminiHookInstaller] Gemini AfterAgent hook installed
+[2026-08-26T18:13:50.478Z] INFO  [Installer] Skipping v5 migration on vscode-extension source — Extension.ts owns it with UI
+[2026-08-26T18:13:50.478Z] INFO  [Installer] Installation complete
+[2026-08-26T18:13:50.562Z] INFO  [Installer] Checking Jolli Memory status
+[2026-08-26T18:13:50.705Z] INFO  [StorageFactory] StorageFactory.create: route=uncutover, projectPath=c:\Users\mk\Documents\ace-music-generator\musical
+[2026-08-26T18:13:52.811Z] WARN  [ReadStorageResolver] createReadStorage: folder lacks index.json — falling back to orphan branch (migration incomplete, or folder wiped)
+[2026-08-26T18:13:53.901Z] INFO  [SchemaV5Migration] Storage backend not initialized yet — skipping schema v5 migration (no data to migrate)
+[2026-08-26T18:13:53.902Z] INFO  [activate] Schema v5 migration: alreadyDone=false fresh=true migrated=0 skipped=0
+[2026-08-26T18:14:10.166Z] INFO  [Installer] Status: enabled=true, claude=true, git=true, geminiHook=true, worktreeHooks=true, sessions=0, summaries=0, codex=true/true, gemini=true/true, enabledWorktrees=1, opencode=true/true, cursor=true/true, copilot=false/true, copilotChat=true, cline=false/true
+[2026-08-26T18:14:10.545Z] INFO  [Installer] Checking Jolli Memory status
+[2026-08-26T18:14:11.499Z] INFO  [Installer] Status: enabled=false, claude=false, git=false, geminiHook=false, worktreeHooks=false, sessions=0, summaries=0, codex=true/true, gemini=true/true, enabledWorktrees=1, opencode=true/true, cursor=true/true, copilot=false/true, copilotChat=true, cline=false/true
+[2026-08-26T18:14:11.502Z] INFO  [initialLoad] All panels loaded — updating status bar
+[2026-08-26T18:14:11.502Z] INFO  [Installer] Checking Jolli Memory status
+[2026-08-26T18:14:13.845Z] INFO  [Installer] Status: enabled=false, claude=false, git=false, geminiHook=false, worktreeHooks=false, sessions=0, summaries=0, codex=true/true, gemini=true/true, enabledWorktrees=1, opencode=true/true, cursor=true/true, copilot=false/true, copilotChat=true, cline=false/true
+[2026-08-26T18:14:28.360Z] INFO  [Installer] Status: enabled=true, claude=true, git=true, geminiHook=true, worktreeHooks=true, sessions=0, summaries=0, codex=true/true, gemini=true/true, enabledWorktrees=1, opencode=true/true, cursor=true/true, copilot=false/true, copilotChat=true, cline=false/true
+[2026-08-26T18:14:28.408Z] INFO  [StorageFactory] StorageFactory.create: route=uncutover, projectPath=c:\Users\mk\Documents\ace-music-generator\musical
+[2026-08-26T18:14:28.921Z] INFO  [Installer] Status: enabled=true, claude=true, git=true, geminiHook=true, worktreeHooks=true, sessions=0, summaries=0, codex=true/true, gemini=true/true, enabledWorktrees=1, opencode=true/true, cursor=true/true, copilot=false/true, copilotChat=true, cline=false/true
+[2026-08-26T18:14:28.948Z] INFO  [Installer] Checking Jolli Memory status
+[2026-08-26T18:14:31.011Z] INFO  [Installer] Status: enabled=true, claude=true, git=true, geminiHook=true, worktreeHooks=true, sessions=0, summaries=0, codex=true/true, gemini=true/true, enabledWorktrees=1, opencode=true/true, cursor=true/true, copilot=false/true, copilotChat=true, cline=false/true
+[2026-08-26T18:14:31.043Z] INFO  [RepoProfile] manual-disable read → false (by=manuallyDisabled, pid=14816, cwd=c:\Users\mk\Documents\ace-music-generator\musical, profile=c:\Users\mk\Documents\ace-music-generator\musical\.jolli\jollimemory\profile.json, raw: userDisabled=undefined manuallyDisabled=false fence=none)
